@@ -13,6 +13,8 @@ services:
         sync: false
       - key: DB_PASS
         sync: false
+      - key: DB_PORT
+        value: "4000"
       - key: BEEM_API_KEY
         sync: false
       - key: BEEM_SECRET_KEY
