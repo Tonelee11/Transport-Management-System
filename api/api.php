@@ -846,7 +846,7 @@ if ($action === 'waybills' && $method === 'POST') {
     }
 
     // 4. Create Waybill
-    $stmt = $db->prepare("INSERT INTO waybills (waybill_number, client_id, client_name, client_phone, sender_name, sender_phone, origin, destination, cargo_description, weight, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt = $db->prepare("INSERT INTO waybills (waybill_number, client_id, client_name, client_phone, sender_name, sender_phone, origin, destination, cargo_description, weight, truck_number, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     $stmt->execute([
         $waybillNumber,
@@ -859,6 +859,7 @@ if ($action === 'waybills' && $method === 'POST') {
         $data['destination'],
         $data['cargo_description'] ?? '',
         $data['weight'] ?? null,
+        $data['truck_number'] ?? null,
         $_SESSION['user_id']
     ]);
 
