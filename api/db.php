@@ -26,10 +26,11 @@ function getDB()
     if ($pdo !== null)
         return $pdo;
 
-    $host = env('DB_HOST', 'db');
-    $dbname = env('DB_NAME', 'logistics');
-    $user = env('DB_USER', 'root');
-    $pass = env('DB_PASS', 'tw_pass');
+    // Use getenv() for Render environment variables
+    $host = getenv('DB_HOST') ?: env('DB_HOST', 'db');
+    $dbname = getenv('DB_NAME') ?: env('DB_NAME', 'logistics');
+    $user = getenv('DB_USER') ?: env('DB_USER', 'root');
+    $pass = getenv('DB_PASS') ?: env('DB_PASS', 'tw_pass');
 
     try {
         $dsn = "mysql:host={$host};dbname={$dbname};charset=utf8mb4";
@@ -38,6 +39,13 @@ function getDB()
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ];
+
+        // TiDB Cloud requires SSL. We enable it by adding the MYSQL_ATTR_SSL_VERIFY_SERVER_CERT option
+        // Note: For most cloud providers, verify_server_cert=false is sufficient for the basic SSL connection
+        if ($host !== 'db' && $host !== '127.0.0.1' && $host !== 'localhost') {
+            $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+        }
+
         $pdo = new PDO($dsn, $user, $pass, $options);
 
         // Synchronize PHP and DB timezones (East Africa Time)

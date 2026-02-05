@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: logistics-tms
+    env: docker
+    plan: free
+    region: oregon 
+    envVars:
+      - key: DB_HOST
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+      - key: BEEM_API_KEY
+        sync: false
+      - key: BEEM_SECRET_KEY
+        sync: false
+      - key: REDIRECT_URL
+        value: https://logistics-tms.onrender.com
+    healthCheckPath: /public/index.html

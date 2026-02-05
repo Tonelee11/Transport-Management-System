@@ -1,31 +1,15 @@
 <?php
 require_once __DIR__ . '/db.php';
 
-global $SMS_CONFIG;
-if (!$SMS_CONFIG && file_exists(__DIR__ . '/api.php')) {
-    // Hack: Grab config by including api.php but preventing execution? No, let's just re-declare or load env
-    // Easier: Load env manually or via api.php structure.
-    // Let's create a shared config file or just load env here.
-
-    // Minimal env loader for CLI
-    if (file_exists(__DIR__ . '/.env')) {
-        $lines = file(__DIR__ . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as $line) {
-            if (strpos(trim($line), '#') === 0)
-                continue;
-            list($name, $value) = explode('=', $line, 2);
-            putenv(trim($name) . '=' . trim($value));
-        }
-    }
-}
-
+// Use env() function from db.php to load credentials
 $SMS_CONFIG = [
-    'provider' => 'beem', // or 'nextsms'
-    'api_key' => getenv('BEEM_API_KEY'),
-    'secret_key' => getenv('BEEM_SECRET_KEY'),
-    'sender_id' => 'Raphael', // As set in api.php
+    'provider' => 'beem',
+    'api_key' => env('BEEM_API_KEY', ''),
+    'secret_key' => env('BEEM_SECRET_KEY', ''),
+    'sender_id' => 'RAPHAEL-TR',
     'base_url' => 'https://apisms.beem.africa/v1/send',
 ];
+
 
 function checkDeliveryStatus($messageId)
 {

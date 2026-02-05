@@ -149,15 +149,15 @@ function checkRateLimit($db, $action, $limit = 10, $periodHours = 1)
 
 
 // SMS Provider Configuration
-// Store credentials in environment variables for security
-// Example: Define in .env file or server environment
+// Credentials loaded from .env file using env() function from db.php
 $SMS_CONFIG = [
     'provider' => 'beem',
-    'api_key' => getenv('BEEM_API_KEY'),
-    'secret_key' => getenv('BEEM_SECRET_KEY'),
-    'sender_id' => 'Raphael',
+    'api_key' => env('BEEM_API_KEY', ''),
+    'secret_key' => env('BEEM_SECRET_KEY', ''),
+    'sender_id' => 'RAPHAEL-TR',
     'base_url' => 'https://apisms.beem.africa/v1/send',
 ];
+
 
 // Send SMS via Beem Africa API
 // Handles phone number formatting and API communication
@@ -166,6 +166,13 @@ function sendSMS($phone, $message)
 {
     global $SMS_CONFIG;
 
+    // Debug: Log outgoing request details
+    error_log("=== SMS DEBUG START ===");
+    error_log("SMS DEBUG: Target phone (raw): $phone");
+    error_log("SMS DEBUG: API Key present: " . (!empty($SMS_CONFIG['api_key']) ? 'YES' : 'NO'));
+    error_log("SMS DEBUG: Secret Key present: " . (!empty($SMS_CONFIG['secret_key']) ? 'YES' : 'NO'));
+    error_log("SMS DEBUG: Sender ID: " . ($SMS_CONFIG['sender_id'] ?? 'NOT SET'));
+
     $phone = preg_replace('/[^0-9]/', '', $phone);
     if (strlen($phone) == 9) {
         $phone = '255' . $phone;
@@ -173,8 +180,12 @@ function sendSMS($phone, $message)
         $phone = '255' . substr($phone, 1);
     }
 
+    error_log("SMS DEBUG: Normalized phone: $phone");
+
     // Validate phone number format
     if (!preg_match('/^255\d{9}$/', $phone)) {
+        error_log("SMS DEBUG: Phone validation FAILED - invalid format");
+        error_log("=== SMS DEBUG END ===");
         return ['success' => false, 'error' => 'Invalid phone number format'];
     }
 
@@ -190,6 +201,9 @@ function sendSMS($phone, $message)
             ]
         ]
     ];
+
+    error_log("SMS DEBUG: Request URL: " . $SMS_CONFIG['base_url']);
+    error_log("SMS DEBUG: Request body: " . json_encode($postData));
 
     $curl = curl_init($SMS_CONFIG['base_url']);
 
@@ -208,22 +222,55 @@ function sendSMS($phone, $message)
 
     $response = curl_exec($curl);
     $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($curl);
+    $curlErrno = curl_errno($curl);
     curl_close($curl);
 
+    // Debug: Log full response
+    error_log("SMS DEBUG: HTTP Code: $httpCode");
+    error_log("SMS DEBUG: Response: $response");
+    if ($curlError) {
+        error_log("SMS DEBUG: cURL Error ($curlErrno): $curlError");
+    }
+
     if ($response === false) {
-        error_log("SMS API connection failed");
-        return ['success' => false, 'error' => 'Connection failed'];
+        error_log("SMS DEBUG: Connection FAILED - $curlError");
+        error_log("=== SMS DEBUG END ===");
+        return ['success' => false, 'error' => 'Connection failed: ' . $curlError];
     }
 
     $result = json_decode($response, true);
+    error_log("SMS DEBUG: Parsed result: " . print_r($result, true));
 
-    if ($httpCode === 200 && isset($result['success']) && $result['success'] === true) {
-        return ['success' => true, 'message_id' => $result['data']['message_id'] ?? null];
+    // Beem API returns 'successful' (not 'success') and includes validation counts
+    // Response format: {"successful":true,"request_id":"xxx","valid":1,"invalid":0,"duplicates":0}
+    $isSuccessful = $httpCode === 200 &&
+        (isset($result['successful']) && $result['successful'] === true) &&
+        (isset($result['valid']) && $result['valid'] > 0);
+
+    if ($isSuccessful) {
+        $messageId = $result['request_id'] ?? null;
+        error_log("SMS DEBUG: SUCCESS! Message ID: $messageId, Valid: " . $result['valid']);
+        error_log("=== SMS DEBUG END ===");
+        return ['success' => true, 'message_id' => $messageId];
     }
 
-    error_log("SMS API error: " . ($result['message'] ?? 'Unknown error'));
-    return ['success' => false, 'error' => 'SMS failed'];
+    // Determine error message
+    $errorMsg = 'SMS failed';
+    if (isset($result['valid']) && $result['valid'] == 0) {
+        $errorMsg = 'Invalid phone number - rejected by SMS gateway';
+    } elseif (isset($result['message'])) {
+        $errorMsg = $result['message'];
+    } elseif (isset($result['error'])) {
+        $errorMsg = $result['error'];
+    }
+
+    error_log("SMS DEBUG: FAILED - HTTP $httpCode - Error: $errorMsg");
+    error_log("=== SMS DEBUG END ===");
+    return ['success' => false, 'error' => $errorMsg];
 }
+
+
 
 
 
@@ -892,11 +939,12 @@ if ($action === 'waybills/send-departed' && $method === 'POST') {
         exit;
     }
 
-    $message = "Habari {$waybill['client_name']}, mizigo yako namba {$waybill['waybill_number']} imeondoka kutoka {$waybill['origin']}. Tutakujulisha inapoondoka.";
+    $message = "Habari {$waybill['client_name']}, mizigo yako namba {$waybill['waybill_number']} imeondoka kutoka {$waybill['origin']}. Tutakujulisha itakapowasili.";
     $smsResult = sendSMS($waybill['client_phone'], $message);
+    $messageId = $smsResult['success'] ? $smsResult['message_id'] : null;
 
-    $stmt = $db->prepare("INSERT INTO sms_logs (waybill_id, phone, template_key, message_text, status) VALUES (?, ?, 'departed', ?, ?)");
-    $stmt->execute([$waybillId, $waybill['client_phone'], $message, $smsResult['success'] ? 'sent' : 'failed']);
+    $stmt = $db->prepare("INSERT INTO sms_logs (waybill_id, phone, template_key, message_text, status, message_id) VALUES (?, ?, 'departed', ?, ?, ?)");
+    $stmt->execute([$waybillId, $waybill['client_phone'], $message, $smsResult['success'] ? 'sent' : 'failed', $messageId]);
 
     $stmt = $db->prepare("UPDATE waybills SET status = 'on_road' WHERE id = ?");
     $stmt->execute([$waybillId]);
