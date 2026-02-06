@@ -46,11 +46,16 @@ function getDB()
 
         // TiDB Cloud REQUIRES SSL. 
         if ($host !== 'db' && $host !== '127.0.0.1' && $host !== 'localhost') {
-            // Setting any SSL option triggers the driver to use SSL. 
-            // We disable verification to avoid needing the cert file on the container.
-            $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
-            // On Alpine/Render, we use this to force the driver into SSL mode
-            $options[PDO::MYSQL_OPT_SSL_MODE] = 1;
+            // TiDB Serverless requires SSL. We specify the CA bundle path which exists in the container.
+            $caPath = '/etc/ssl/certs/ca-certificates.crt';
+
+            if (file_exists($caPath)) {
+                $options[PDO::MYSQL_ATTR_SSL_CA] = $caPath;
+                $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+            } else {
+                // Fallback for environments without the standard CA path
+                $options[1015] = 1; // PDO::MYSQL_OPT_SSL_MODE = 1 (REQUIRED)
+            }
         }
 
         $pdo = new PDO($dsn, $user, $pass, $options);
