@@ -10,6 +10,7 @@ date_default_timezone_set('Africa/Dar_es_Salaam');
 $allowed_origins = [
     'http://localhost',
     'http://localhost:80',
+    'https://tonelee11.github.io',
     // Add your production domain here when deploying:
     // 'https://yourdomain.com'
 ];
@@ -300,7 +301,15 @@ if ($action === 'login' && $method === 'POST') {
     $stmt->execute([$username]);
     $user = $stmt->fetch();
 
-    if (!$user || !password_verify($password, $user['password_hash'])) {
+    if (!$user) {
+        error_log("LOGIN FAIL: User '$username' not found in database.");
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid credentials']);
+        exit;
+    }
+
+    if (!password_verify($password, $user['password_hash'])) {
+        error_log("LOGIN FAIL: Incorrect password for user '$username'.");
         recordFailedLogin($db, $username);
         http_response_code(401);
         echo json_encode(['error' => 'Invalid credentials']);

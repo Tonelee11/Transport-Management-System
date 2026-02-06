@@ -27,11 +27,14 @@ function getDB()
         return $pdo;
 
     // Use getenv() for Render environment variables
-    $host = getenv('DB_HOST') ?: env('DB_HOST', 'db');
+    $hostRaw = getenv('DB_HOST') ?: env('DB_HOST', 'db');
     $dbname = getenv('DB_NAME') ?: env('DB_NAME', 'logistics');
     $user = getenv('DB_USER') ?: env('DB_USER', 'root');
     $pass = getenv('DB_PASS') ?: env('DB_PASS', 'tw_pass');
-    $port = getenv('DB_PORT') ?: env('DB_PORT', '4000'); // TiDB uses 4000
+    $port = getenv('DB_PORT') ?: env('DB_PORT', '4000');
+
+    // Clean Host: Remove port if user accidentally included it in the host string
+    $host = explode(':', $hostRaw)[0];
 
     try {
         $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
@@ -42,12 +45,12 @@ function getDB()
         ];
 
         // TiDB Cloud REQUIRES SSL. 
-        // We must set the SSL CA option to force the driver to use a secure transport.
         if ($host !== 'db' && $host !== '127.0.0.1' && $host !== 'localhost') {
-            // On most Linux systems (including Alpine), setting this to a non-existent or 
-            // empty value while disabling verification is enough to trigger SSL.
-            $options[PDO::MYSQL_ATTR_SSL_CA] = true;
+            // Setting any SSL option triggers the driver to use SSL. 
+            // We disable verification to avoid needing the cert file on the container.
             $options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
+            // On Alpine/Render, we use this to force the driver into SSL mode
+            $options[PDO::MYSQL_OPT_SSL_MODE] = 1;
         }
 
         $pdo = new PDO($dsn, $user, $pass, $options);
@@ -58,8 +61,15 @@ function getDB()
         return $pdo;
     } catch (PDOException $e) {
         http_response_code(500);
-        // Temporarily show the real error message to debug the connection
-        echo json_encode(['error' => 'Database connection failed: ' . $e->getMessage()]);
+        // Detail the error including the host we tried to connect to
+        echo json_encode([
+            'error' => 'Database connection failed',
+            'debug' => [
+                'message' => $e->getMessage(),
+                'tried_host' => $host,
+                'tried_port' => $port
+            ]
+        ]);
         exit;
     }
 }

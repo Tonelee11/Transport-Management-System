@@ -7,9 +7,9 @@ if (session_status() === PHP_SESSION_NONE) {
         'lifetime' => 60 * 60 * 24 * 7, // 7 days
         'path' => '/',
         'domain' => '',
-        'secure' => true, // ENABLED: Requires HTTPS - disable if testing locally without SSL
+        'secure' => true,
         'httponly' => true,
-        'samesite' => 'Lax'
+        'samesite' => 'None' // Required for cross-site (GitHub to Render)
     ]);
     session_start();
 }
