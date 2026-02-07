@@ -191,6 +191,11 @@ function sendSMS($phone, $message)
         return ['success' => false, 'error' => 'Invalid phone number format'];
     }
 
+    // SIMULATION MODE: Return success immediately without calling Beem
+    error_log("SMS DEBUG: Simulation Mode - Skipping API call");
+    return ['success' => true, 'message_id' => 'SIMULATED_' . time()];
+
+    /*
     $postData = [
         'source_addr' => $SMS_CONFIG['sender_id'],
         'encoding' => 0,
@@ -266,6 +271,7 @@ function sendSMS($phone, $message)
     error_log("SMS DEBUG: FAILED - HTTP $httpCode - Error: $errorMsg");
     error_log("=== SMS DEBUG END ===");
     return ['success' => false, 'error' => $errorMsg];
+    */
 }
 
 
