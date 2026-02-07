@@ -169,6 +169,7 @@ function sendSMS($phone, $message)
 
     // Debug: Log outgoing request details
     error_log("=== SMS DEBUG START ===");
+    error_log("SMS DEBUG: CONFIG: " . json_encode($SMS_CONFIG));
     error_log("SMS DEBUG: Target phone (raw): $phone");
     error_log("SMS DEBUG: API Key present: " . (!empty($SMS_CONFIG['api_key']) ? 'YES' : 'NO'));
     error_log("SMS DEBUG: Secret Key present: " . (!empty($SMS_CONFIG['secret_key']) ? 'YES' : 'NO'));
@@ -211,9 +212,6 @@ function sendSMS($phone, $message)
     curl_setopt_array($curl, [
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_SSL_VERIFYHOST => 2,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_TIMEOUT => 15,
         CURLOPT_HTTPHEADER => [
             'Authorization: Basic ' . base64_encode($SMS_CONFIG['api_key'] . ':' . $SMS_CONFIG['secret_key']),
             'Content-Type: application/json'
@@ -876,7 +874,7 @@ if ($action === 'waybills' && $method === 'POST') {
     $message = "Habari $clientName, mizigo yako namba {$waybillNumber} imepokewa. Tutakujulisha inapoondoka.";
 
     $smsResult = sendSMS($phone, $message);
-    $messageId = $smsResult['success'] ? $smsResult['message_id'] : null;
+    $messageId = $smsResult['success'] ? $smsResult['message_id'] : ($smsResult['error'] ?? 'Unknown Error');
 
     $stmt = $db->prepare("INSERT INTO sms_logs (waybill_id, phone, template_key, message_text, status, message_id) VALUES (?, ?, 'receipt', ?, ?, ?)");
     $stmt->execute([$waybillId, $phone, $message, $smsResult['success'] ? 'sent' : 'failed', $messageId]);
@@ -951,7 +949,7 @@ if ($action === 'waybills/send-departed' && $method === 'POST') {
 
     $message = "Habari {$waybill['client_name']}, mizigo yako namba {$waybill['waybill_number']} imeondoka kutoka {$waybill['origin']}. Tutakujulisha itakapowasili.";
     $smsResult = sendSMS($waybill['client_phone'], $message);
-    $messageId = $smsResult['success'] ? $smsResult['message_id'] : null;
+    $messageId = $smsResult['success'] ? $smsResult['message_id'] : ($smsResult['error'] ?? 'Unknown Error');
 
     $stmt = $db->prepare("INSERT INTO sms_logs (waybill_id, phone, template_key, message_text, status, message_id) VALUES (?, ?, 'departed', ?, ?, ?)");
     $stmt->execute([$waybillId, $waybill['client_phone'], $message, $smsResult['success'] ? 'sent' : 'failed', $messageId]);
