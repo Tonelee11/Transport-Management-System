@@ -153,8 +153,8 @@ function checkRateLimit($db, $action, $limit = 10, $periodHours = 1)
 // Credentials loaded from .env file using env() function from db.php
 $SMS_CONFIG = [
     'provider' => 'beem',
-    'api_key' => env('BEEM_API_KEY', ''),
-    'secret_key' => env('BEEM_SECRET_KEY', ''),
+    'api_key' => trim(env('BEEM_API_KEY', '')),
+    'secret_key' => trim(env('BEEM_SECRET_KEY', '')),
     'sender_id' => 'RAPHAEL-TR',
     'base_url' => 'https://apisms.beem.africa/v1/send',
 ];
@@ -244,8 +244,7 @@ function sendSMS($phone, $message)
     // Beem API returns 'successful' (not 'success') and includes validation counts
     // Response format: {"successful":true,"request_id":"xxx","valid":1,"invalid":0,"duplicates":0}
     $isSuccessful = $httpCode === 200 &&
-        (isset($result['successful']) && $result['successful'] === true) &&
-        (isset($result['valid']) && $result['valid'] > 0);
+        (isset($result['successful']) && $result['successful'] == true);
 
     if ($isSuccessful) {
         $messageId = $result['request_id'] ?? null;
