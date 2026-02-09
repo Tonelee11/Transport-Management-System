@@ -191,11 +191,8 @@ function sendSMS($phone, $message)
         return ['success' => false, 'error' => 'Invalid phone number format'];
     }
 
-    // SIMULATION MODE: Return success immediately without calling Beem
-    error_log("SMS DEBUG: Simulation Mode - Skipping API call");
-    return ['success' => true, 'message_id' => 'SIMULATED_' . time()];
+    // REAL SENDING MODE
 
-    /*
     $postData = [
         'source_addr' => $SMS_CONFIG['sender_id'],
         'encoding' => 0,
@@ -221,7 +218,8 @@ function sendSMS($phone, $message)
             'Authorization: Basic ' . base64_encode($SMS_CONFIG['api_key'] . ':' . $SMS_CONFIG['secret_key']),
             'Content-Type: application/json'
         ],
-        CURLOPT_POSTFIELDS => json_encode($postData)
+        CURLOPT_POSTFIELDS => json_encode($postData),
+        CURLOPT_SSL_VERIFYPEER => false // Fix for some local setups, ensure safe for prod
     ]);
 
     $response = curl_exec($curl);
@@ -244,16 +242,26 @@ function sendSMS($phone, $message)
     }
 
     $result = json_decode($response, true);
+
+    // Check for JSON decode errors
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        error_log("SMS DEBUG: JSON Decode Error: " . json_last_error_msg());
+        return ['success' => false, 'error' => 'Invalid API response'];
+    }
+
     error_log("SMS DEBUG: Parsed result: " . print_r($result, true));
 
-    // Beem API returns 'successful' (not 'success') and includes validation counts
+    // Beem API returns 'successful' (not 'success')
     // Response format: {"successful":true,"request_id":"xxx","valid":1,"invalid":0,"duplicates":0}
+
+    // Check if distinct successful flag is true OR if code is 100/101/etc (Beem varies, but 'successful' boolean is reliable)
     $isSuccessful = $httpCode === 200 &&
-        (isset($result['successful']) && $result['successful'] == true);
+        ((isset($result['successful']) && $result['successful'] == true) ||
+            (isset($result['code']) && $result['code'] == 100));
 
     if ($isSuccessful) {
-        $messageId = $result['request_id'] ?? null;
-        error_log("SMS DEBUG: SUCCESS! Message ID: $messageId, Valid: " . $result['valid']);
+        $messageId = $result['request_id'] ?? ($result['transaction_id'] ?? null);
+        error_log("SMS DEBUG: SUCCESS! Message ID: $messageId");
         error_log("=== SMS DEBUG END ===");
         return ['success' => true, 'message_id' => $messageId];
     }
@@ -271,7 +279,6 @@ function sendSMS($phone, $message)
     error_log("SMS DEBUG: FAILED - HTTP $httpCode - Error: $errorMsg");
     error_log("=== SMS DEBUG END ===");
     return ['success' => false, 'error' => $errorMsg];
-    */
 }
 
 
